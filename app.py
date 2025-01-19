@@ -221,8 +221,3 @@ def update_plot(selected_param, start_date, end_date):
         "data": [trace, trace_avg, trace_error],
         "layout": layout,
     }
-
-
-# Step 5: Run the Web Application
-if __name__ == "__main__":
-    app.run_server(debug=True)
