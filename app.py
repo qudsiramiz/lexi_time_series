@@ -96,7 +96,7 @@ def prepare_data_from_drive():
 # Prepare the data
 def prepare_data():
     # Load all CSV files in the directory
-    parent_folder = Path("/home/vetinari/Desktop/git/Lexi-Bu/lxi_gui/data/from_LEXI/")
+    parent_folder = Path("orbit/")
     file_name_format = "payload_lexi_*_*_hk_output.csv"
     csv_files = glob.glob(str(parent_folder / "**" / file_name_format), recursive=True)
     exclude_pattern = re.compile(r"payload_lexi_\d+_\d+_\d+_\d+_hk_output.csv")
@@ -116,8 +116,8 @@ def prepare_data():
 app = dash.Dash(__name__)
 
 # Load the data
-df = prepare_data_from_drive()
-# df = prepare_data()
+# df = prepare_data_from_drive()
+df = prepare_data()
 
 # Step 3: Layout of the Web Application
 app.layout = html.Div(
