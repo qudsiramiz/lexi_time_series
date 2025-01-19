@@ -171,3 +171,6 @@ cython_debug/
 .pypirc
 
 lexi-time-series-2f0841418a28.json
+
+pyproject.toml
+poetry.lock
