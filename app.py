@@ -10,6 +10,9 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 import io
+import os
+
+service_account_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE")
 
 
 def list_files_recursively(service, folder_id):
@@ -18,13 +21,15 @@ def list_files_recursively(service, folder_id):
 
     # Query to get all items in the current folder
     query = f"'{folder_id}' in parents and trashed=false"
-    results = service.files().list(q=query, fields="files(id, name, mimeType)").execute()
-    files = results.get('files', [])
+    results = (
+        service.files().list(q=query, fields="files(id, name, mimeType)").execute()
+    )
+    files = results.get("files", [])
 
     for file in files:
         # If the file is a folder, recurse into it
-        if file['mimeType'] == 'application/vnd.google-apps.folder':
-            all_files.extend(list_files_recursively(service, file['id']))
+        if file["mimeType"] == "application/vnd.google-apps.folder":
+            all_files.extend(list_files_recursively(service, file["id"]))
         else:
             # Add files that are not folders
             all_files.append(file)
@@ -37,11 +42,13 @@ def prepare_data_from_drive():
     service_account_file = "lexi-time-series-2f0841418a28.json"
 
     # Define the scope for accessing Google Drive
-    scopes = ['https://www.googleapis.com/auth/drive.readonly']
+    scopes = ["https://www.googleapis.com/auth/drive.readonly"]
 
     # Authenticate with the service account credentials
-    credentials = Credentials.from_service_account_file(service_account_file, scopes=scopes)
-    drive_service = build('drive', 'v3', credentials=credentials)
+    credentials = Credentials.from_service_account_file(
+        service_account_file, scopes=scopes
+    )
+    drive_service = build("drive", "v3", credentials=credentials)
 
     # Folder ID from the shared Google Drive folder link
     folder_id = "1LMd-rEBSgmzZ6Y9Ggzq7In9O1bk6LRYa"
@@ -52,11 +59,11 @@ def prepare_data_from_drive():
     files = list_files_recursively(drive_service, folder_id)
 
     # Only keep CSV files
-    files = [file for file in files if file['name'].endswith("hk_output.csv")]
+    files = [file for file in files if file["name"].endswith("hk_output.csv")]
 
     # Exclude pattern
     exclude_pattern = re.compile(r"payload_lexi_\d+_\d+_\d+_\d+_hk_output.csv")
-    files = [file for file in files if not exclude_pattern.search(file['name'])]
+    files = [file for file in files if not exclude_pattern.search(file["name"])]
 
     print(f"Found {len(files)} CSV files in the folder.")
     # return files
@@ -65,7 +72,7 @@ def prepare_data_from_drive():
     dataframes = []
     for i, file in enumerate(files):
         print(f"Downloading file {i + 1} of {len(files)}: {file['name']}")
-        file_id = file['id']
+        file_id = file["id"]
         request = drive_service.files().get_media(fileId=file_id)
         file_data = io.BytesIO()
         downloader = MediaIoBaseDownload(file_data, request)
@@ -113,37 +120,41 @@ df = prepare_data_from_drive()
 # df = prepare_data()
 
 # Step 3: Layout of the Web Application
-app.layout = html.Div([
-    html.H1("Interactive Time Series Plot"),
+app.layout = html.Div(
+    [
+        html.H1("Interactive Time Series Plot"),
+        # Dropdown for selecting a parameter (key)
+        html.Label("Select Parameter:"),
+        dcc.Dropdown(
+            id="parameter-dropdown",
+            options=[
+                {"label": col, "value": col} for col in df.columns if col != "Date"
+            ],
+            value="+28V_Imon",  # Default value
+        ),
+        # Date Picker Range for selecting time range
+        html.Label("Select Time Range:"),
+        dcc.DatePickerRange(
+            id="date-picker-range",
+            start_date=df.index.min().date(),
+            end_date=df.index.max().date() + pd.Timedelta(days=1),
+            display_format="YYYY-MM-DD",
+            style={"margin": "10px"},
+        ),
+        # Graph to show the time series
+        dcc.Graph(id="time-series-plot"),
+    ]
+)
 
-    # Dropdown for selecting a parameter (key)
-    html.Label("Select Parameter:"),
-    dcc.Dropdown(
-        id="parameter-dropdown",
-        options=[{"label": col, "value": col} for col in df.columns if col != "Date"],
-        value="+28V_Imon"  # Default value
-    ),
-
-    # Date Picker Range for selecting time range
-    html.Label("Select Time Range:"),
-    dcc.DatePickerRange(
-        id="date-picker-range",
-        start_date=df.index.min().date(),
-        end_date=df.index.max().date() + pd.Timedelta(days=1),
-        display_format="YYYY-MM-DD",
-        style={"margin": "10px"}
-    ),
-
-    # Graph to show the time series
-    dcc.Graph(id="time-series-plot")
-])
 
 # Step 4: Create Callback to Update Plot based on User Inputs
 @app.callback(
     Output("time-series-plot", "figure"),
-    [Input("parameter-dropdown", "value"),
-     Input("date-picker-range", "start_date"),
-     Input("date-picker-range", "end_date")]
+    [
+        Input("parameter-dropdown", "value"),
+        Input("date-picker-range", "start_date"),
+        Input("date-picker-range", "end_date"),
+    ],
 )
 def update_plot(selected_param, start_date, end_date):
     # Filter data by selected time range
@@ -155,12 +166,14 @@ def update_plot(selected_param, start_date, end_date):
         x=filtered_df.index,
         y=filtered_df[selected_param],
         mode="lines",
-        name=selected_param
+        name=selected_param,
     )
 
     # For each day, calculate the median, 10th percentile, and 90th percentile
-    daily_stats = filtered_df[selected_param].resample("D").agg(
-        ["median", lambda x: x.quantile(0.1), lambda x: x.quantile(0.9)]
+    daily_stats = (
+        filtered_df[selected_param]
+        .resample("D")
+        .agg(["median", lambda x: x.quantile(0.1), lambda x: x.quantile(0.9)])
     )
 
     # Rename the columns for clarity
@@ -177,7 +190,7 @@ def update_plot(selected_param, start_date, end_date):
         y=daily_stats["median"],
         mode="markers",
         marker=dict(size=10, color="rgba(0, 0, 0, 1)", symbol="diamond"),
-        name="Daily Average"
+        name="Daily Average",
     )
 
     trace_error = go.Scatter(
@@ -187,18 +200,21 @@ def update_plot(selected_param, start_date, end_date):
             type="data",
             symmetric=False,
             array=daily_stats["median"] - daily_stats["10th_percentile"],
-            arrayminus=daily_stats["90th_percentile"] - daily_stats["median"]
+            arrayminus=daily_stats["90th_percentile"] - daily_stats["median"],
         ),
         mode="markers",
         marker=dict(size=10, color="rgba(255, 0, 0, 0.5)", symbol="circle"),
-        name="10th-90th Percentile"
+        name="10th-90th Percentile",
     )
 
     layout = go.Layout(
         title=f"Time Series of {selected_param}",
         xaxis={"title": "Time [UTC]"},
         yaxis={"title": selected_param},
-        hovermode="closest"
+        hovermode="closest",
     )
 
-    return {"data": [trace, trace_avg, trace_error], "layout": layout, }
+    return {
+        "data": [trace, trace_avg, trace_error],
+        "layout": layout,
+    }
