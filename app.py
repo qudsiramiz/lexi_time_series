@@ -12,8 +12,6 @@ from googleapiclient.http import MediaIoBaseDownload
 import io
 import os
 
-service_account_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE")
-
 
 def list_files_recursively(service, folder_id):
     """Recursively list all files (including in subfolders) within a given folder."""
@@ -39,7 +37,13 @@ def list_files_recursively(service, folder_id):
 
 def prepare_data_from_drive():
     # Path to the service account key file
-    service_account_file = "lexi-time-series-2f0841418a28.json"
+    try:
+        service_account_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE")
+    except Exception:
+        service_account_file = "lexi-time-series-2f0841418a28.json"
+        print(
+            "Service account file not found in environment variables. Using local file."
+        )
 
     # Define the scope for accessing Google Drive
     scopes = ["https://www.googleapis.com/auth/drive.readonly"]
@@ -178,7 +182,6 @@ def update_plot(selected_param, start_date, end_date):
 
     # Rename the columns for clarity
     daily_stats.columns = ["median", "10th_percentile", "90th_percentile"]
-    print(daily_stats)
 
     # Add the date as a column for plotting
     daily_stats["date"] = daily_stats.index
@@ -218,3 +221,8 @@ def update_plot(selected_param, start_date, end_date):
         "data": [trace, trace_avg, trace_error],
         "layout": layout,
     }
+
+
+# Step 5: Run the Web Application
+if __name__ == "__main__":
+    app.run_server(debug=True)
